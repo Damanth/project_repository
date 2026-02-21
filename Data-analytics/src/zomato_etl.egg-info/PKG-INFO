@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: zomato-etl
+Version: 0.1.0
+Summary: Zomato ETL pipeline
+Requires-Python: >=3.9

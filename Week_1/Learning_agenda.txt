@@ -1,0 +1,36 @@
+Python, Linux, and Git fundamentals for data engineering Agenda:
+
+1)Environment setup: Python (3.10+), VS Code, pyenv/virtualenv, pip, basic Docker awareness (optional).
+
+2)Linux basics: shell navigation, permissions, environment variables, SSH keys, cron, working with large files.
+
+3)Git basics: init/clone, branching, commits, pull requests, merge vs rebase, .gitignore, semantic commit messages.
+
+
+4)Python essentials: data types, functions, modules/packages, file I/O (CSV/JSON), error handling, logging, configuration via env/YAML, type hints, argparse for CLI.
+
+5)Code quality: project structure, unit tests (pytest), simple profiling.
+
+
+
+
+
+
+
+
+1. Create a GitHub repository (e.g., de-capstone) with a Python package structure (src/etl).
+
+2. Build a CLI script that:
+   a)Reads a local CSV dataset (e.g., NYC Taxi or a public retail dataset).
+   b)Cleans data (type casting, null handling), derives features (e.g., trip duration).
+   c)Writes output as local Parquet files partitioned by date.
+ 
+3. Add logging, configuration via YAML or environment variables, and at least 3 unit tests with pytest.
+
+4. Include a Makefile or simple scripts to run tests/formatting.
+
+5. Use Git branches and a pull request to merge the feature; write a README with usage steps.
+
+6. Schedule the script via cron to run daily on the sample dataset and produce dated outputs.
+
+7. Create a AWS free account in your local

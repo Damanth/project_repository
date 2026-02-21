@@ -1,0 +1,6 @@
+data:
+  input_path: data/raw/zomato_dataset.csv
+  output_path: data/processed/
+
+logging:
+  level: INFO

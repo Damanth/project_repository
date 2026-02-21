@@ -1,0 +1,6 @@
+pandas
+pyarrow
+click
+pyyaml
+pytest
+black
