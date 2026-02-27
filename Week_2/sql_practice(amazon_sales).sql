@@ -151,15 +151,6 @@ WHERE order_date BETWEEN '2024-01-01' AND '2024-01-31'
 GROUP BY order_date
 ORDER BY order_date;
 
-SELECT 
-	order_date, 
-    SUM(total_revenue) AS daily_revenue,
-    SUM(quantity_sold) AS total_units
-FROM amazon_sales
-WHERE order_date BETWEEN '2024-01-01' AND '2024-01-31'
-GROUP BY order_date
-ORDER BY order_date;
-
 
 
 -- Revenue by Category and Region
@@ -176,13 +167,26 @@ FROM amazon_sales
 WHERE product_category = 'Electronics'
 GROUP BY product_category, customer_region;
 
+
+-- Top Performing Regions per Category   
 SELECT 
     product_category,
     customer_region,
-    SUM(total_revenue) AS revenue
+    COUNT(order_id) AS total_orders,
+    AVG(rating) AS avg_rating
 FROM amazon_sales
-WHERE product_category = 'Electronics'
-GROUP BY product_category, customer_region;
+WHERE customer_region IN ('North', 'South')
+GROUP BY product_category, customer_region
+ORDER BY total_orders DESC;
+
+-- Monthly Sales by Region
+SELECT 
+    customer_region,
+    MONTH(order_date) AS sales_month,
+    SUM(total_revenue) AS monthly_revenue
+FROM amazon_sales
+WHERE order_date >= '2024-01-01'
+GROUP BY customer_region, MONTH(order_date);
 
 
 
@@ -205,20 +209,6 @@ JOIN (
 ) c
 ON a.product_category = c.product_category;
 
-SELECT a.order_id,
-       a.product_category,
-       a.total_revenue,
-       c.avg_category_revenue
-FROM amazon_sales a
-JOIN (
-    SELECT product_category,
-           AVG(total_revenue) AS avg_category_revenue
-    FROM amazon_sales
-    GROUP BY product_category
-) c
-ON a.product_category = c.product_category;
-
-
 
 -- Self Join (Same Region)
 -- Performance Note:
@@ -234,13 +224,6 @@ JOIN amazon_sales b
 ON a.customer_region = b.customer_region
 AND a.order_id < b.order_id;
 
-SELECT a.order_id,
-       b.order_id AS compared_order,
-       a.customer_region
-FROM amazon_sales a
-JOIN amazon_sales b
-ON a.customer_region = b.customer_region
-AND a.order_id < b.order_id;
 
 
 
@@ -259,14 +242,6 @@ SELECT order_id,
        ) AS revenue_rank
 FROM amazon_sales;
 
-SELECT order_id,
-       product_category,
-       total_revenue,
-       RANK() OVER (
-           PARTITION BY product_category
-           ORDER BY total_revenue DESC
-       ) AS revenue_rank
-FROM amazon_sales;
 
 
 -- Running Revenue Total
@@ -282,15 +257,6 @@ SELECT order_date,
        ) AS running_revenue
 FROM amazon_sales;
 
-SELECT order_date,
-	   total_revenue,
-       SUM(total_revenue) OVER(
-           ORDER BY order_date
-       ) AS running_revenue
-FROM amazon_sales;
-
-
-
 -- Moving Average (Window Frame)
 -- Performance Note:
 -- Uses sliding window computation.
@@ -305,15 +271,11 @@ SELECT order_id,
        ) AS moving_avg
 FROM amazon_sales;
 
+-- Top customers by review count
 SELECT order_id,
-       order_date,
-       AVG(total_revenue) OVER (
-           ORDER BY order_date
-           ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
-       ) AS moving_avg
+       review_count,
+       DENSE_RANK() OVER (ORDER BY review_count DESC) AS review_rank
 FROM amazon_sales;
-
-
 
 -- CTE: High Revenue Orders
 -- Performance Note:
@@ -331,15 +293,40 @@ SELECT product_category,
 FROM high_sales
 GROUP BY product_category;
 
-WITH high_sales AS (
-    SELECT *
+-- Top order per region
+WITH ranked_sales AS (
+    SELECT *,
+           ROW_NUMBER() OVER (
+               PARTITION BY customer_region
+               ORDER BY total_revenue DESC
+           ) AS rn
     FROM amazon_sales
-    WHERE total_revenue > 500
 )
-SELECT product_category,
-       COUNT(*) AS high_sales_orders
-FROM high_sales
-GROUP BY product_category;
+SELECT * 
+FROM ranked_sales
+WHERE rn = 1;
+
+-- AGGREGATES
+-- 1)Daily revenue
+SELECT order_date,
+       SUM(total_revenue) AS daily_revenue,
+       SUM(quantity_sold) AS items_sold
+FROM amazon_sales
+GROUP BY order_date
+ORDER BY order_date;
+-- 2)Weekly revenue
+SELECT YEAR(order_date) AS year,
+       WEEK(order_date) AS week_no,
+       SUM(total_revenue) AS weekly_revenue
+FROM amazon_sales
+GROUP BY year, week_no
+ORDER BY year, week_no;
+-- 3)Daily category performance
+SELECT order_date,
+       product_category,
+       SUM(total_revenue) AS revenue
+FROM amazon_sales
+GROUP BY order_date, product_category;
 
 
 
@@ -354,11 +341,17 @@ FROM amazon_sales
 ORDER BY total_revenue DESC
 LIMIT 3;
 
+-- Top product per category
 SELECT *
-FROM amazon_sales
-ORDER BY total_revenue DESC
-LIMIT 3;
-
+FROM (
+    SELECT *,
+           ROW_NUMBER() OVER (
+               PARTITION BY product_category
+               ORDER BY total_revenue DESC
+           ) AS rn
+    FROM amazon_sales
+) t
+WHERE rn = 1;
 
 
 -- TOP Rated Products (Filtered)
@@ -375,30 +368,12 @@ WHERE review_count > 100
 ORDER BY rating DESC
 LIMIT 5;
 
-SELECT order_id,
-       rating,
-       review_count
-FROM amazon_sales
-WHERE review_count > 100
-ORDER BY rating DESC
-LIMIT 5;
-
-
-
 -- Revenue Contribution (% of Total)
 -- Performance Note:
 -- Window aggregation over entire dataset.
 -- Requires full scan but computed once.
 
 EXPLAIN ANALYZE
-SELECT order_id,
-       total_revenue,
-       ROUND(
-           total_revenue /
-           SUM(total_revenue) OVER () * 100, 2
-       ) AS revenue_percent
-FROM amazon_sales;
-
 SELECT order_id,
        total_revenue,
        ROUND(
@@ -424,11 +399,3 @@ SELECT order_id,
        ) AS category_revenue_percent
 FROM amazon_sales;
 
-SELECT order_id,
-       product_category,
-       total_revenue,
-       ROUND(
-           total_revenue /
-           SUM(total_revenue) OVER (PARTITION BY product_category) * 100, 2
-       ) AS category_revenue_percent
-FROM amazon_sales;
