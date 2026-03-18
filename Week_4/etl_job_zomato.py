@@ -9,10 +9,8 @@ from pyspark.sql.functions import col, regexp_replace, split
 from pyspark.sql.functions import current_timestamp, year, month
 from pyspark.sql.types import FloatType, IntegerType
 
-# -----------------------------------
-# Job Initialization
-# -----------------------------------
 
+# Job Initialization
 args = getResolvedOptions(sys.argv, ['JOB_NAME'])
 
 sc = SparkContext()
@@ -21,10 +19,8 @@ spark = glueContext.spark_session
 job = Job(glueContext)
 job.init(args['JOB_NAME'], args)
 
-# -----------------------------------
-# Read Raw Data from Glue Catalog
-# -----------------------------------
 
+# Read Raw Data from Glue Catalog
 raw_data = glueContext.create_dynamic_frame.from_catalog(
     database="zomato_db",
     table_name="zomato_rawzomato_data",
@@ -33,36 +29,30 @@ raw_data = glueContext.create_dynamic_frame.from_catalog(
 
 df = raw_data.toDF()
 
-# -----------------------------------
+
 # Schema Normalization
-# -----------------------------------
 
 df = df.withColumnRenamed("approx_cost(for two people)", "approx_cost_for_two") \
        .withColumnRenamed("listed_in(type)", "listed_in_type") \
        .withColumnRenamed("listed_in(city)", "listed_in_city")
 
-# -----------------------------------
-# Data Cleaning
-# -----------------------------------
 
+# Data Cleaning
 df_clean = df.dropDuplicates() \
              .dropna(subset=["name", "location"])
 
-# -----------------------------------
 # Rating Cleaning
 # Convert "4.1/5" → 4.1
-# -----------------------------------
+
 
 df_clean = df_clean.withColumn(
     "rating",
     split(col("rate"), "/").getItem(0).cast(FloatType())
 )
 
-# -----------------------------------
+
 # Cost Conversion
 # Remove commas and convert to integer
-# -----------------------------------
-
 df_clean = df_clean.withColumn(
     "approx_cost_for_two",
     regexp_replace(col("approx_cost_for_two"), ",", "")
@@ -73,19 +63,15 @@ df_clean = df_clean.withColumn(
     col("approx_cost_for_two").cast(IntegerType())
 )
 
-# -----------------------------------
-# Votes Conversion
-# -----------------------------------
 
+# Votes Conversion
 df_clean = df_clean.withColumn(
     "votes",
     col("votes").cast(IntegerType())
 )
 
-# -----------------------------------
-# Add ETL Metadata Columns
-# -----------------------------------
 
+# Add ETL Metadata Columns
 df_clean = df_clean.withColumn(
     "ingestion_timestamp",
     current_timestamp()
@@ -101,10 +87,8 @@ df_clean = df_clean.withColumn(
     month("ingestion_timestamp")
 )
 
-# -----------------------------------
-# Select Final Columns
-# -----------------------------------
 
+# Select Final Columns
 df_final = df_clean.select(
     "name",
     "location",
@@ -119,16 +103,12 @@ df_final = df_clean.select(
     "month"
 )
 
-# -----------------------------------
-# Convert back to DynamicFrame
-# -----------------------------------
 
+# Convert back to DynamicFrame
 final_dynamic = DynamicFrame.fromDF(df_final, glueContext, "final_dynamic")
 
-# -----------------------------------
-# Write Curated Parquet Data
-# -----------------------------------
 
+# Write Curated Parquet Data
 glueContext.write_dynamic_frame.from_options(
     frame=final_dynamic,
     connection_type="s3",
